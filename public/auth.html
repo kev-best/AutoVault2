@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Auto-Vault Auth</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+    .auth-container { min-height: 100vh; display: flex; align-items: center; }
+    .auth-card { background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
+    .form-control { border-radius: 8px; padding: 12px; }
+    .btn { border-radius: 8px; padding: 12px; font-weight: 600; }
+    .brand-title { color: #667eea; font-weight: bold; margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid auth-container">
+    <div class="row justify-content-center w-100">
+      <div class="col-md-5 col-lg-4">
+        <div class="auth-card p-4">
+          <h2 class="text-center brand-title">🚗 Auto-Vault</h2>
+          
+          <ul class="nav nav-tabs mb-4" id="authTabs" role="tablist">
+            <li class="nav-item flex-fill" role="presentation">
+              <button class="nav-link active w-100" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
+            </li>
+            <li class="nav-item flex-fill" role="presentation">
+              <button class="nav-link w-100" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">Register</button>
+            </li>
+          </ul>
+          
+          <div class="tab-content" id="authTabsContent">
+            <div class="tab-pane fade show active" id="login" role="tabpanel">
+              <form id="loginForm" class="needs-validation" novalidate>
+                <div class="mb-3">
+                  <input type="email" class="form-control" id="loginEmail" placeholder="Email Address" required />
+                  <div class="invalid-feedback">Please provide a valid email.</div>
+                </div>
+                <div class="mb-3">
+                  <input type="password" class="form-control" id="loginPassword" placeholder="Password" required />
+                  <div class="invalid-feedback">Password is required.</div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Login</button>
+              </form>
+            </div>
+            
+            <div class="tab-pane fade" id="register" role="tabpanel">
+              <form id="registerForm" class="needs-validation" novalidate>
+                <div class="mb-3">
+                  <input type="text" class="form-control" id="registerName" placeholder="Full Name" required />
+                  <div class="invalid-feedback">Name is required.</div>
+                </div>
+                <div class="mb-3">
+                  <input type="email" class="form-control" id="registerEmail" placeholder="Email Address" required />
+                  <div class="invalid-feedback">Please provide a valid email.</div>
+                </div>
+                <div class="mb-3">
+                  <input type="password" class="form-control" id="registerPassword" placeholder="Password (min 6 chars)" minlength="6" required />
+                  <div class="invalid-feedback">Password must be at least 6 characters.</div>
+                </div>
+                <div class="mb-3">
+                  <input type="tel" class="form-control" id="registerPhone" placeholder="Phone Number (optional)" />
+                </div>
+                <div class="mb-3">
+                  <select class="form-select" id="registerRole">
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-success w-100">Register</button>
+              </form>
+            </div>
+          </div>
+          
+          <div id="loadingSpinner" class="text-center mt-3" style="display: none;">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="ms-2">Processing...</span>
+          </div>
+          
+          <div id="errorMessage" class="alert alert-danger mt-3" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+    import { getAuth } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+    
+    // Your Firebase config (updated to match autovault-449 project)
+    const firebaseConfig = {
+        apiKey: "AIzaSyC1t8Jjx1JxzD6O2w_sDVUJzNcIG-Zm7hY",
+        authDomain: "autovault-449.firebaseapp.com",
+        projectId: "autovault-449",
+        storageBucket: "autovault-449.firebasestorage.app",
+        messagingSenderId: "335912958767",
+        appId: "1:335912958767:web:688058498d72b179257fda",
+        measurementId: "G-HER45RG8KY"
+    };
+    
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    
+    // Make auth available globally
+    window.firebaseAuth = auth;
+  </script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="js/auth.js"></script>
+</body>
+</html>
