@@ -1,3 +1,6 @@
 .env
 **/node_modules/
 serviceAccountKey.json
+render-env-variables.txt
+*.env.local
+*.env.production
