@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Gallery Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Photo Gallery Test</h1>
+        
+        <div class="row">
+            <div class="col-md-12">
+                <h3>Direct Function Tests</h3>
+                <button class="btn btn-primary mb-2" onclick="testSimpleCall()">Test Simple Call</button><br>
+                <button class="btn btn-success mb-2" onclick="testWithData()">Test With Sample Data</button><br>
+                <button class="btn btn-info mb-2" onclick="testStringEscaping()">Test String Escaping</button><br>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h3>Simulated Car Button</h3>
+            <div id="testCarContainer"></div>
+        </div>
+        
+        <div class="mt-4">
+            <h3>Debug Output</h3>
+            <pre id="debugOutput"></pre>
+        </div>
+    </div>
+
+    <!-- Photo Modal -->
+    <div class="modal fade" id="photoModal" tabindex="-1" aria-labelledby="photoModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="photoModalLabel">
+              <i class="fas fa-images me-2"></i>Vehicle Photos
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="photoGallery" class="row g-3">
+              <!-- Photos will be loaded here -->
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Include the showImageGallery function from index.js
+        function showImageGallery(vin, carName, mediaJson) {
+          alert('showImageGallery function called!'); // Debug alert
+          console.log('showImageGallery called with:', { vin, carName, mediaJson: mediaJson?.substring(0, 100) + '...' });
+          
+          try {
+            const photoModal = new bootstrap.Modal(document.getElementById('photoModal'));
+            const photoGallery = document.getElementById('photoGallery');
+            const modalTitle = document.getElementById('photoModalLabel');
+            
+            console.log('Modal elements found:', {
+              photoModal: !!document.getElementById('photoModal'),
+              photoGallery: !!photoGallery,
+              modalTitle: !!modalTitle
+            });
+            
+            // Parse the media data
+            let media = [];
+            try {
+              media = JSON.parse(mediaJson);
+              console.log('Parsed media array:', media.length, 'items');
+            } catch (e) {
+              console.error('Error parsing media JSON:', e);
+              console.error('Raw mediaJson:', mediaJson);
+              media = [];
+            }
+            
+            modalTitle.innerHTML = `<i class="fas fa-images me-2"></i>Photos for ${carName}`;
+            
+            if (!media || media.length === 0) {
+              photoGallery.innerHTML = `
+                <div class="col-12 text-center">
+                  <i class="fas fa-image fa-3x text-muted mb-3"></i>
+                  <p>No photos available for this vehicle.</p>
+                </div>
+              `;
+            } else {
+              // Create photo grid
+              photoGallery.innerHTML = media.map((photo, index) => `
+                <div class="col-lg-4 col-md-6 col-sm-12">
+                  <div class="card h-100">
+                    <img src="${photo}" class="card-img-top photo-thumbnail" alt="Vehicle Photo ${index + 1}" 
+                         style="height: 250px; object-fit: cover; cursor: pointer;"
+                         onclick="alert('Photo clicked!')"
+                         onerror="this.src='https://via.placeholder.com/400x250?text=Image+Not+Available'">
+                    <div class="card-body p-2">
+                      <small class="text-muted">Photo ${index + 1} of ${media.length}</small>
+                    </div>
+                  </div>
+                </div>
+              `).join('');
+            }
+            
+            console.log('About to show photo modal');
+            photoModal.show();
+            console.log('Photo modal show() called');
+          } catch (error) {
+            console.error('Error showing image gallery:', error);
+            alert('Failed to load photo gallery. Please try again.');
+          }
+        }
+        
+        // Make globally available
+        window.showImageGallery = showImageGallery;
+        
+        function testSimpleCall() {
+            console.log('Testing simple function call...');
+            if (typeof window.showImageGallery === 'function') {
+                window.showImageGallery('TEST123', 'Test Car', '[]');
+            } else {
+                alert('Function not available');
+            }
+        }
+        
+        function testWithData() {
+            const testMedia = [
+                'https://via.placeholder.com/400x300/FF0000/FFFFFF?text=Photo1',
+                'https://via.placeholder.com/400x300/00FF00/FFFFFF?text=Photo2',
+                'https://via.placeholder.com/400x300/0000FF/FFFFFF?text=Photo3'
+            ];
+            
+            const mediaJson = JSON.stringify(testMedia);
+            console.log('Testing with media data:', mediaJson);
+            
+            window.showImageGallery('TEST456', 'Test Car 2024', mediaJson);
+        }
+        
+        function testStringEscaping() {
+            // Simulate the exact string generation from the car display
+            const car = {
+                vin: 'TEST789',
+                year: 2024,
+                make: 'Test',
+                model: 'Car',
+                media: [
+                    'https://via.placeholder.com/400x300/FF0000/FFFFFF?text=Photo1',
+                    'https://via.placeholder.com/400x300/00FF00/FFFFFF?text=Photo2'
+                ]
+            };
+            
+            const carTitle = `${car.year} ${car.make} ${car.model}`;
+            const escapedTitle = carTitle.replace(/'/g, "\\'");
+            const mediaJson = JSON.stringify(car.media).replace(/'/g, "\\'");
+            
+            document.getElementById('debugOutput').textContent = 
+                `Car Title: ${carTitle}\n` +
+                `Escaped Title: ${escapedTitle}\n` +
+                `Media JSON: ${JSON.stringify(car.media)}\n` +
+                `Escaped Media JSON: ${mediaJson}\n`;
+            
+            // Create the actual button as it would be generated
+            const buttonHtml = `
+                <button class="btn btn-outline-info" onclick="showImageGallery('${car.vin}', '${escapedTitle}', '${mediaJson}')">
+                    <i class="fas fa-images me-2"></i>View All Photos (${car.media.length})
+                </button>
+            `;
+            
+            document.getElementById('testCarContainer').innerHTML = buttonHtml;
+            
+            console.log('Generated button HTML:', buttonHtml);
+        }
+        
+        // Auto-run tests
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Photo gallery test page loaded');
+            testStringEscaping();
+        });
+    </script>
+</body>
+</html>

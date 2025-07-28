@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Function Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Function Test Page</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <h3>Navigation Tests</h3>
+                <button class="btn btn-primary mb-2" onclick="goToAuth()">Test goToAuth()</button><br>
+                <button class="btn btn-success mb-2" onclick="goToManager()">Test goToManager()</button><br>
+                <button class="btn btn-info mb-2" onclick="goToIndex()">Test goToIndex()</button><br>
+            </div>
+            
+            <div class="col-md-6">
+                <h3>Console Tests</h3>
+                <button class="btn btn-warning mb-2" onclick="testAllFunctions()">Test All Functions</button><br>
+                <button class="btn btn-secondary mb-2" onclick="testButtons()">Test Button Clicks</button><br>
+                <button class="btn btn-dark mb-2" onclick="console.log('Console test works!')">Console Test</button><br>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h3>Debug Info</h3>
+            <pre id="debugInfo"></pre>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Test if basic JavaScript works
+        console.log('Test page loaded');
+        
+        // Simple test functions
+        function goToAuth() {
+            console.log('goToAuth called from test page');
+            alert('goToAuth function called!');
+        }
+        
+        function goToManager() {
+            console.log('goToManager called from test page');
+            alert('goToManager function called!');
+        }
+        
+        function goToIndex() {
+            console.log('goToIndex called from test page');
+            alert('goToIndex function called!');
+        }
+        
+        function testAllFunctions() {
+            const debugInfo = document.getElementById('debugInfo');
+            const info = {
+                'window.goToAuth': typeof window.goToAuth,
+                'window.goToManager': typeof window.goToManager,
+                'window.goToIndex': typeof window.goToIndex,
+                'localStorage.token': localStorage.getItem('token'),
+                'localStorage.userEmail': localStorage.getItem('userEmail'),
+                'localStorage.role': localStorage.getItem('role')
+            };
+            debugInfo.textContent = JSON.stringify(info, null, 2);
+            console.log('Debug info:', info);
+        }
+        
+        function testButtons() {
+            console.log('Button test function called');
+            alert('testButtons function works!');
+        }
+        
+        // Make functions globally available
+        window.goToAuth = goToAuth;
+        window.goToManager = goToManager;
+        window.goToIndex = goToIndex;
+        window.testAllFunctions = testAllFunctions;
+        window.testButtons = testButtons;
+        
+        // Auto-run debug info on load
+        document.addEventListener('DOMContentLoaded', testAllFunctions);
+    </script>
+</body>
+</html>

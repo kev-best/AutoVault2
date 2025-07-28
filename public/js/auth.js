@@ -18,15 +18,14 @@ window.addEventListener('load', () => {
   const loadingSpinner = document.getElementById('loadingSpinner');
   const errorMessage = document.getElementById('errorMessage');
 
-  // Check if user is already logged in
+  // Remove auto-login behavior - users must manually login
+  // onAuthStateChanged is still useful for session management but won't auto-redirect
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      try {
-        const idToken = await user.getIdToken();
-        await verifyAndRedirect(idToken);
-      } catch (error) {
-        console.error('Auto-login failed:', error);
-      }
+      console.log('User is signed in:', user.email);
+      // Don't auto-redirect - let user decide when to login
+    } else {
+      console.log('User is signed out');
     }
   });
 
@@ -206,3 +205,23 @@ window.addEventListener('load', () => {
     });
   });
 });
+
+// Navigation functions
+function goToIndex() {
+    window.location.href = '/';
+}
+
+function goToManager() {
+    // Check if user has admin role
+    const role = localStorage.getItem('role');
+    if (role === 'admin' || role === 'manager') {
+        window.location.href = '/manager.html';
+    } else {
+        alert('Access denied. You do not have permission to access the manager page.');
+    }
+}
+
+function goToAuth() {
+    // Already on auth page, just refresh or do nothing
+    window.location.reload();
+}

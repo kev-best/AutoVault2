@@ -2,132 +2,33 @@
 const token = localStorage.getItem('token');
 const userEmail = localStorage.getItem('userEmail');
 
-// Navigation functions (defined first so they're available immediately)
-function goToAuth() {
-    console.log('goToAuth called');
-    try {
-        window.location.href = '/auth.html';
-    } catch (error) {
-        console.error('Error in goToAuth:', error);
-    }
+// Check authentication
+if (!token) {
+  window.location.href = 'auth.html';
 }
-
-function goToManager() {
-    console.log('goToManager called');
-    try {
-        // Check if user has admin role
-        const role = localStorage.getItem('role');
-        console.log('User role:', role);
-        if (role === 'admin' || role === 'manager') {
-            window.location.href = '/manager.html';
-        } else {
-            alert('Access denied. You do not have permission to access the manager page.');
-        }
-    } catch (error) {
-        console.error('Error in goToManager:', error);
-    }
-}
-
-function goToIndex() {
-    console.log('goToIndex called');
-    try {
-        // Already on index page, just refresh or do nothing
-        window.location.reload();
-    } catch (error) {
-        console.error('Error in goToIndex:', error);
-    }
-}
-
-// Make navigation functions globally available immediately
-window.goToAuth = goToAuth;
-window.goToManager = goToManager;
-window.goToIndex = goToIndex;
-
-// Check authentication - but don't redirect immediately, let page load first
-let authCheckDone = false;
-
-// Debug mode - set this to true to skip authentication for testing
-const DEBUG_MODE = window.location.search.includes('debug=true');
-
-console.log('Debug mode:', DEBUG_MODE);
-console.log('Token available:', !!token);
-console.log('User email:', userEmail);
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('Index.js DOMContentLoaded started');
+  // Welcome message
+  if (userEmail) {
+    document.getElementById('userWelcome').textContent = `Welcome, ${userEmail}`;
+  }
+
+  // Initialize Socket.IO for real-time alerts
+  const socket = io();
   
-  // Check authentication first
-  if (!token && !DEBUG_MODE) {
-    console.log('No token found, redirecting to auth page');
+  socket.on('newAlert', (alert) => {
+    showAlertToast(alert.message);
+  });
+
+  // Logout functionality
+  document.getElementById('logoutBtn').onclick = () => {
+    localStorage.clear();
     window.location.href = 'auth.html';
-    return;
-  }
-  
-  try {
-    // Welcome message
-    if (userEmail) {
-      document.getElementById('userWelcome').textContent = `Welcome, ${userEmail}`;
-      console.log('Welcome message set');
-    }
+  };
 
-    // Show manager button only for admin/manager roles
-    const role = localStorage.getItem('role');
-    const managerBtn = document.getElementById('managerPageBtn');
-    if (managerBtn) {
-      if (role === 'admin' || role === 'manager') {
-        managerBtn.style.display = 'inline-block';
-        console.log('Manager button shown for role:', role);
-      } else {
-        managerBtn.style.display = 'none';
-        console.log('Manager button hidden for role:', role);
-      }
-    } else {
-      console.warn('Manager button element not found');
-    }
-
-    // Initialize Socket.IO for real-time alerts
-    const socket = io();
-    console.log('Socket.IO initialized');
-    
-    socket.on('newAlert', (alert) => {
-      showAlertToast(alert.message);
-    });
-
-    // Logout functionality
-    const logoutButton = document.getElementById('logoutBtn');
-    if (logoutButton) {
-      logoutButton.onclick = () => {
-        console.log('Logout button clicked');
-        localStorage.clear();
-        window.location.href = 'auth.html';
-      };
-      console.log('Logout button event listener set');
-    } else {
-      console.error('Logout button element not found');
-    }
-
-    // Get random cars functionality
-    const randomButton = document.getElementById('randomBtn');
-    if (randomButton) {
-      randomButton.onclick = getRandomCars;
-      console.log('Random button event listener set');
-    } else {
-      console.error('Random button element not found');
-    }
-    
-    console.log('Index.js DOMContentLoaded completed successfully');
-    
-    // Debug: Check if functions are available globally
-    console.log('Global functions available:');
-    console.log('- goToAuth:', typeof window.goToAuth);
-    console.log('- goToManager:', typeof window.goToManager);
-    console.log('- goToIndex:', typeof window.goToIndex);
-    console.log('- getRandomCars:', typeof window.getRandomCars);
-    
-  } catch (error) {
-    console.error('Error in DOMContentLoaded:', error);
-  }
+  // Get random cars functionality
+  document.getElementById('randomBtn').onclick = getRandomCars;
 });
 
 // Show alert toast notification
@@ -193,9 +94,6 @@ async function getRandomCars() {
   }
 }
 
-// Make getRandomCars globally available
-window.getRandomCars = getRandomCars;
-
 // Get the best image URL from the media array
 function getBestImageUrl(car) {
   // Priority: media array > mediaCached > fallback
@@ -208,17 +106,9 @@ function getBestImageUrl(car) {
   return 'https://via.placeholder.com/300x200?text=No+Image';
 }
 
-// Global storage for car data
-let carDataStore = {};
-
 // Display cars in the UI
 function displayCars(cars) {
   const carsContainer = document.getElementById('carsContainer');
-  
-  // Store car data for photo gallery access
-  cars.forEach(car => {
-    carDataStore[car.vin] = car;
-  });
   
   carsContainer.innerHTML = cars.map(car => {
     const imageUrl = getBestImageUrl(car);
@@ -290,10 +180,11 @@ function displayCars(cars) {
               <button class="btn btn-outline-success btn-custom" onclick="showDealershipMap('${car.vin}', '${carTitle.replace(/'/g, "\\'")}')">
                 <i class="fas fa-map-marker-alt me-2"></i>Find Dealerships
               </button>
-              <!-- Always show photo button for testing -->
-              <button class="btn btn-outline-info btn-custom" onclick="showImageGalleryByVin('${car.vin}', '${carTitle.replace(/'/g, "\\'")}')">
-                <i class="fas fa-images me-2"></i>View All Photos (${car.media ? car.media.length : 0})
-              </button>
+              ${car.media && car.media.length > 1 ? 
+                `<button class="btn btn-outline-info btn-custom" onclick="showImageGallery('${car.vin}', '${carTitle.replace(/'/g, "\\'")}', '${JSON.stringify(car.media).replace(/'/g, "\\'")}')">
+                  <i class="fas fa-images me-2"></i>View All Photos (${car.media.length})
+                </button>` : ''
+              }
             </div>
           </div>
         </div>
@@ -301,135 +192,6 @@ function displayCars(cars) {
     `;
   }).join('');
 }
-
-// Wrapper function to get car data by VIN and show gallery
-function showImageGalleryByVin(vin, carName) {
-  console.log('showImageGalleryByVin called with:', { vin, carName });
-  const car = carDataStore[vin];
-  if (car && car.media) {
-    showImageGallery(vin, carName, JSON.stringify(car.media));
-  } else {
-    console.warn('No car data or media found for VIN:', vin);
-    showImageGallery(vin, carName, '[]');
-  }
-}
-
-// Show image gallery for a car
-function showImageGallery(vin, carName, mediaJson) {
-  console.log('showImageGallery called with:', { vin, carName, mediaJson: mediaJson?.substring(0, 100) + '...' });
-  
-  try {
-    const photoModal = new bootstrap.Modal(document.getElementById('photoModal'));
-    const photoGallery = document.getElementById('photoGallery');
-    const modalTitle = document.getElementById('photoModalLabel');
-    
-    console.log('Modal elements found:', {
-      photoModal: !!document.getElementById('photoModal'),
-      photoGallery: !!photoGallery,
-      modalTitle: !!modalTitle
-    });
-    
-    // Parse the media data
-    let media = [];
-    try {
-      media = JSON.parse(mediaJson);
-      console.log('Parsed media array:', media.length, 'items');
-    } catch (e) {
-      console.error('Error parsing media JSON:', e);
-      console.error('Raw mediaJson:', mediaJson);
-      media = [];
-    }
-    
-    modalTitle.innerHTML = `<i class="fas fa-images me-2"></i>Photos for ${carName}`;
-    
-    if (!media || media.length === 0) {
-      photoGallery.innerHTML = `
-        <div class="col-12 text-center">
-          <i class="fas fa-image fa-3x text-muted mb-3"></i>
-          <p>No photos available for this vehicle.</p>
-        </div>
-      `;
-    } else {
-      // Create photo grid
-      photoGallery.innerHTML = media.map((photo, index) => `
-        <div class="col-lg-4 col-md-6 col-sm-12">
-          <div class="card h-100">
-            <img src="${photo}" class="card-img-top photo-thumbnail" alt="Vehicle Photo ${index + 1}" 
-                 style="height: 250px; object-fit: cover; cursor: pointer;"
-                 onclick="openLightbox('${photo}', ${index}, ${media.length})"
-                 onerror="this.src='https://via.placeholder.com/400x250?text=Image+Not+Available'">
-            <div class="card-body p-2">
-              <small class="text-muted">Photo ${index + 1} of ${media.length}</small>
-            </div>
-          </div>
-        </div>
-      `).join('');
-    }
-    
-    console.log('About to show photo modal');
-    photoModal.show();
-    console.log('Photo modal show() called');
-  } catch (error) {
-    console.error('Error showing image gallery:', error);
-    alert('Failed to load photo gallery. Please try again.');
-  }
-}
-
-// Open lightbox for full-size image viewing
-function openLightbox(imageSrc, currentIndex, totalImages) {
-  // Create lightbox overlay
-  const lightbox = document.createElement('div');
-  lightbox.className = 'lightbox-overlay';
-  lightbox.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-    cursor: pointer;
-  `;
-  
-  lightbox.innerHTML = `
-    <div style="position: relative; max-width: 90%; max-height: 90%;">
-      <img src="${imageSrc}" style="max-width: 100%; max-height: 100%; object-fit: contain;" 
-           onerror="this.src='https://via.placeholder.com/800x600?text=Image+Not+Available'">
-      <div style="position: absolute; top: 10px; right: 10px;">
-        <button class="btn btn-light btn-sm" onclick="this.closest('.lightbox-overlay').remove()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; text-align: center;">
-        <small>Photo ${currentIndex + 1} of ${totalImages}</small>
-      </div>
-    </div>
-  `;
-  
-  // Close on click outside image
-  lightbox.addEventListener('click', (e) => {
-    if (e.target === lightbox) {
-      lightbox.remove();
-    }
-  });
-  
-  // Close on Escape key
-  document.addEventListener('keydown', function escapeHandler(e) {
-    if (e.key === 'Escape') {
-      lightbox.remove();
-      document.removeEventListener('keydown', escapeHandler);
-    }
-  });
-  
-  document.body.appendChild(lightbox);
-}
-
-// Make functions globally accessible
-window.showImageGallery = showImageGallery;
-window.openLightbox = openLightbox;
 
 // Show dealership locations on map
 async function showDealershipMap(vin, carName) {
@@ -495,14 +257,12 @@ async function showDealershipMap(vin, carName) {
                 ${dealer.name || 'Unknown Dealership'}
                 ${dealer.isPrimary ? '<span class="badge bg-primary ms-2">Primary</span>' : ''}
               </h6>
-              <small class="text-muted dealer-location">📍 ${dealer.city}, ${dealer.state}</small>
+              <small class="text-muted">📍 ${dealer.city}, ${dealer.state}</small>
             </div>
             <p class="mb-1">${dealer.address || 'Address not available'}</p>
             <div class="d-flex justify-content-between align-items-center">
               <small class="text-muted">📞 ${dealer.phone || 'Phone not available'}</small>
-              <small class="map-status ${index === 0 ? 'text-primary' : 'text-muted'}">
-                ${index === 0 ? '<i class="fas fa-map-marker-alt me-1"></i>Showing on map' : 'Click to view on map'}
-              </small>
+              ${index === 0 ? '<small class="text-primary"><i class="fas fa-map-marker-alt me-1"></i>Showing on map</small>' : '<small class="text-muted">Click to view on map</small>'}
             </div>
           </div>
         `).join('')}
@@ -595,17 +355,17 @@ function selectDealership(index) {
   dealershipItems.forEach((item, i) => {
     if (i === index) {
       item.classList.add('active');
-      const mapStatus = item.querySelector('.map-status');
-      if (mapStatus) {
-        mapStatus.innerHTML = '<i class="fas fa-map-marker-alt me-1"></i>Showing on map';
-        mapStatus.className = 'map-status text-primary';
+      const lastSmall = item.querySelector('small:last-child');
+      if (lastSmall) {
+        lastSmall.innerHTML = '<i class="fas fa-map-marker-alt me-1"></i>Showing on map';
+        lastSmall.className = 'text-primary';
       }
     } else {
       item.classList.remove('active');
-      const mapStatus = item.querySelector('.map-status');
-      if (mapStatus) {
-        mapStatus.innerHTML = 'Click to view on map';
-        mapStatus.className = 'map-status text-muted';
+      const lastSmall = item.querySelector('small:last-child');
+      if (lastSmall) {
+        lastSmall.innerHTML = 'Click to view on map';
+        lastSmall.className = 'text-muted';
       }
     }
   });
@@ -633,20 +393,51 @@ function selectDealership(index) {
 
 // Make the function globally accessible
 window.selectDealership = selectDealership;
-
-// Debug function to test dealership selection
-window.testDealershipSelection = function() {
-  console.log('Testing dealership selection...');
-  console.log('currentDealerships:', window.currentDealerships);
-  console.log('selectDealership function:', typeof window.selectDealership);
-  
-  if (window.currentDealerships && window.currentDealerships.length > 1) {
-    console.log('Testing selection of second dealership...');
-    selectDealership(1);
-  } else {
-    console.log('Not enough dealerships to test with');
+    // Update fallback display
+    const mapContainer = document.getElementById('mapContainer');
+    mapContainer.innerHTML = `
+      <div class="bg-light d-flex align-items-center justify-content-center h-100 rounded">
+        <div class="text-center">
+          <i class="fas fa-map fa-3x text-primary mb-3"></i>
+          <h5>${dealer.name}</h5>
+          <p class="text-muted">${dealer.address}</p>
+          <p class="text-muted">📞 ${dealer.phone}</p>
+          <small class="text-info">Add your Google Maps API key to enable interactive maps</small>
+        </div>
+      </div>
+    `;
   }
-};
+}
+
+// Make the function globally accessible
+window.selectDealership = selectDealership;
+    if (error.message.includes('404')) {
+      errorMessage = 'Car not found in the database.';
+    } else if (error.message.includes('400')) {
+      errorMessage = 'No dealer information available for this vehicle.';
+    } else if (error.message.includes('401')) {
+      errorMessage = 'Authentication required. Please log in again.';
+    }
+    
+    mapContainer.innerHTML = `
+      <div class="text-center p-4">
+        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+        <p>${errorMessage}</p>
+        <small class="text-muted">Error details: ${error.message}</small>
+        <br><br>
+        <button class="btn btn-primary" onclick="showDealershipMap('${vin}', '${carName}')">
+          <i class="fas fa-redo me-2"></i>Retry
+        </button>
+      </div>
+    `;
+    
+    dealershipsList.innerHTML = `
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Unable to load dealership list. ${errorMessage}
+      </div>
+    `;
+  }
 
 
 // Initialize Google Maps with single dealership
@@ -778,133 +569,75 @@ function initializeGoogleMap(dealerships, carName) {
   }
 }
 
+// Show image gallery modal
+async function showImageGallery(vin, carName, mediaJson) {
+  try {
+    const media = JSON.parse(mediaJson);
+    
+    // Create and show modal
+    const modalHtml = `
+      <div class="modal fade" id="imageGalleryModal" tabindex="-1" aria-labelledby="imageGalleryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="imageGalleryModalLabel">
+                <i class="fas fa-images me-2"></i>${carName} - Photo Gallery
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="carouselGallery" class="carousel slide" data-bs-ride="carousel">
+                <div class="carousel-indicators">
+                  ${media.map((_, index) => 
+                    `<button type="button" data-bs-target="#carouselGallery" data-bs-slide-to="${index}" ${index === 0 ? 'class="active" aria-current="true"' : ''} aria-label="Slide ${index + 1}"></button>`
+                  ).join('')}
+                </div>
+                <div class="carousel-inner">
+                  ${media.map((imageUrl, index) => `
+                    <div class="carousel-item ${index === 0 ? 'active' : ''}">
+                      <img src="${imageUrl}" class="d-block w-100" alt="${carName} - Image ${index + 1}" style="height: 400px; object-fit: cover;">
+                    </div>
+                  `).join('')}
+                </div>
+                <button class="carousel-control-prev" type="button" data-bs-target="#carouselGallery" data-bs-slide="prev">
+                  <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Previous</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#carouselGallery" data-bs-slide="next">
+                  <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Next</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('imageGalleryModal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('imageGalleryModal'));
+    modal.show();
+    
+    // Clean up modal when hidden
+    document.getElementById('imageGalleryModal').addEventListener('hidden.bs.modal', function () {
+      this.remove();
+    });
+    
+  } catch (error) {
+    console.error('Error showing image gallery:', error);
+    alert('Failed to load image gallery');
+  }
+}
+
 // Make function globally available
 window.showDealershipMap = showDealershipMap;
 window.showImageGallery = showImageGallery;
-window.showImageGalleryByVin = showImageGalleryByVin;
-
-// Debug and test functions
-window.testAllFunctions = function() {
-  console.log('=== TESTING ALL FUNCTIONS ===');
-  
-  // Test navigation functions
-  console.log('Navigation functions:');
-  console.log('- goToAuth:', typeof window.goToAuth, window.goToAuth);
-  console.log('- goToManager:', typeof window.goToManager, window.goToManager);
-  console.log('- goToIndex:', typeof window.goToIndex, window.goToIndex);
-  
-  // Test other functions
-  console.log('Other functions:');
-  console.log('- getRandomCars:', typeof window.getRandomCars, window.getRandomCars);
-  console.log('- showImageGallery:', typeof window.showImageGallery, window.showImageGallery);
-  console.log('- showDealershipMap:', typeof window.showDealershipMap, window.showDealershipMap);
-  
-  // Test DOM elements
-  console.log('DOM elements:');
-  console.log('- logoutBtn:', document.getElementById('logoutBtn'));
-  console.log('- randomBtn:', document.getElementById('randomBtn'));
-  console.log('- authPageBtn:', document.getElementById('authPageBtn'));
-  console.log('- managerPageBtn:', document.getElementById('managerPageBtn'));
-  
-  console.log('=== END TEST ===');
-};
-
-// Test buttons functionality
-window.testButtons = function() {
-  console.log('=== TESTING BUTTON CLICKS ===');
-  
-  const authBtn = document.getElementById('authPageBtn');
-  const managerBtn = document.getElementById('managerPageBtn');
-  const logoutBtn = document.getElementById('logoutBtn');
-  const randomBtn = document.getElementById('randomBtn');
-  
-  if (authBtn) {
-    console.log('Auth button found, testing onclick...');
-    try {
-      authBtn.click();
-    } catch (e) {
-      console.error('Auth button click failed:', e);
-    }
-  } else {
-    console.error('Auth button not found');
-  }
-  
-  console.log('=== END BUTTON TEST ===');
-};
-
-// Test photo gallery functionality
-window.testPhotoGallery = function() {
-  console.log('=== TESTING PHOTO GALLERY ===');
-  
-  // Test with sample data
-  const testMedia = ['https://via.placeholder.com/400x300/FF0000/FFFFFF?text=Photo1',
-                     'https://via.placeholder.com/400x300/00FF00/FFFFFF?text=Photo2',
-                     'https://via.placeholder.com/400x300/0000FF/FFFFFF?text=Photo3'];
-  
-  const testMediaJson = JSON.stringify(testMedia);
-  
-  console.log('Testing showImageGallery function...');
-  console.log('Function available:', typeof window.showImageGallery);
-  
-  if (typeof window.showImageGallery === 'function') {
-    try {
-      window.showImageGallery('TEST123', 'Test Car 2024', testMediaJson);
-      console.log('Photo gallery test completed');
-    } catch (e) {
-      console.error('Photo gallery test failed:', e);
-    }
-  } else {
-    console.error('showImageGallery function not available');
-  }
-  
-  console.log('=== END PHOTO GALLERY TEST ===');
-};
-
-// Generate test cars for debugging
-window.generateTestCars = function() {
-  console.log('=== GENERATING TEST CARS ===');
-  
-  const testCars = [
-    {
-      vin: 'TEST001',
-      year: 2024,
-      make: 'Toyota',
-      model: 'Camry',
-      trim: 'XLE',
-      miles: 15000,
-      msrp: 28000,
-      media: [
-        'https://via.placeholder.com/400x300/FF0000/FFFFFF?text=Toyota1',
-        'https://via.placeholder.com/400x300/00FF00/FFFFFF?text=Toyota2',
-        'https://via.placeholder.com/400x300/0000FF/FFFFFF?text=Toyota3'
-      ],
-      dealer: {
-        name: 'Test Toyota Dealer',
-        city: 'Los Angeles',
-        state: 'CA'
-      }
-    },
-    {
-      vin: 'TEST002',
-      year: 2023,
-      make: 'Honda',
-      model: 'Civic',
-      trim: 'Sport',
-      miles: 22000,
-      msrp: 25000,
-      media: [
-        'https://via.placeholder.com/400x300/FF00FF/FFFFFF?text=Honda1',
-        'https://via.placeholder.com/400x300/00FFFF/FFFFFF?text=Honda2'
-      ],
-      dealer: {
-        name: 'Test Honda Dealer',
-        city: 'San Francisco',
-        state: 'CA'
-      }
-    }
-  ];
-  
-  console.log('Displaying test cars...');
-  displayCars(testCars);
-  console.log('Test cars generated');
-};

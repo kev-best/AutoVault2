@@ -133,33 +133,82 @@ exports.getCarByVin = async (req, res) => {
   }
 };
 
-// Get dealerships for a car
+// Get dealerships for a car from MarketCheck data
 exports.getCarDealerships = async (req, res) => {
   try {
     const { vin } = req.params;
-    const radius = parseInt(req.query.radius) || 10000;
+    const radius = parseInt(req.query.radius) || 50; // miles
     
-    const snapshot = await db.collection('cars').where('vin', '==', vin).limit(1).get();
+    console.log(`Fetching dealerships for VIN: ${vin}`);
     
-    if (snapshot.empty) {
+    // Get the specific car to determine make/model for finding similar dealers
+    const carSnapshot = await db.collection('cars').where('vin', '==', vin).limit(1).get();
+    
+    if (carSnapshot.empty) {
+      console.log(`Car with VIN ${vin} not found`);
       return res.status(404).json({ error: 'Car not found' });
     }
     
-    const car = snapshot.docs[0].data();
+    const targetCar = carSnapshot.docs[0].data();
+    console.log('Target car dealer:', JSON.stringify(targetCar.dealer, null, 2));
     
-    if (!car.dealer || !car.dealer.lat || !car.dealer.lng) {
-      return res.status(400).json({ error: 'Car location not available' });
+    if (!targetCar.dealer) {
+      return res.status(400).json({ error: 'No dealer information available for this car' });
     }
     
-    const dealerships = await findDealerships({
-      lat: car.dealer.lat,
-      lng: car.dealer.lng,
-      radius
+    // Get all cars from the same make to find different dealerships
+    const allCarsSnapshot = await db.collection('cars')
+      .where('make', '==', targetCar.make)
+      .get();
+    
+    // Extract unique dealerships with valid data
+    const dealershipMap = new Map();
+    
+    allCarsSnapshot.docs.forEach(doc => {
+      const car = doc.data();
+      if (car.dealer && car.dealer.name && car.dealer.lat && car.dealer.lng) {
+        const dealerKey = `${car.dealer.name}_${car.dealer.city}_${car.dealer.state}`;
+        
+        if (!dealershipMap.has(dealerKey)) {
+          dealershipMap.set(dealerKey, {
+            id: car.dealer.id,
+            name: car.dealer.name || 'Unknown Dealership',
+            address: car.dealer.street ? 
+              `${car.dealer.street}, ${car.dealer.city || 'Unknown City'}, ${car.dealer.state || 'Unknown State'} ${car.dealer.zip || ''}`.trim() :
+              `${car.dealer.city || 'Unknown City'}, ${car.dealer.state || 'Unknown State'}`,
+            street: car.dealer.street || '',
+            city: car.dealer.city || 'Unknown City',
+            state: car.dealer.state || 'Unknown State',
+            zip: car.dealer.zip || '',
+            country: car.dealer.country || 'US',
+            lat: parseFloat(car.dealer.lat),
+            lng: parseFloat(car.dealer.lng),
+            phone: car.dealer.phone || 'Phone not available',
+            website: car.dealer.website || null,
+            dealerType: car.dealer.dealerType || 'Unknown',
+            // Add the original car's dealer as the first/primary one
+            isPrimary: car.vin === vin
+          });
+        }
+      }
     });
     
+    let dealerships = Array.from(dealershipMap.values());
+    
+    // Sort to put the primary dealer first, then by name
+    dealerships.sort((a, b) => {
+      if (a.isPrimary) return -1;
+      if (b.isPrimary) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    
+    // Limit to reasonable number of results
+    dealerships = dealerships.slice(0, 10);
+    
+    console.log(`Found ${dealerships.length} unique dealerships for ${targetCar.make}`);
     res.json(dealerships);
   } catch (error) {
     console.error('Error getting car dealerships:', error);
-    res.status(500).json({ error: 'Failed to fetch dealerships' });
+    res.status(500).json({ error: 'Failed to fetch dealerships', details: error.message });
   }
 };

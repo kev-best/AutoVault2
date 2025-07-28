@@ -3,36 +3,101 @@ const token = localStorage.getItem('token');
 const role = localStorage.getItem('role');
 const userEmail = localStorage.getItem('userEmail');
 
-// Check authentication and authorization
-if (!token || (role !== 'admin' && role !== 'manager')) {
-  localStorage.clear();
-  window.location.href = 'auth.html';
-}
+// Debug mode - set this to true to skip authentication for testing
+const DEBUG_MODE = window.location.search.includes('debug=true');
+
+console.log('Manager Debug mode:', DEBUG_MODE);
+console.log('Manager Token available:', !!token);
+console.log('Manager User role:', role);
+console.log('Manager User email:', userEmail);
 
 // Global variables
 let currentPage = 1;
 let totalPages = 1;
 
+// Global storage for car data (for photo gallery access)
+let carDataStore = {};
+
+// Navigation functions
+function goToIndex() {
+    console.log('goToIndex called from manager');
+    window.location.href = '/';
+}
+
+function goToAuth() {
+    console.log('goToAuth called from manager');
+    window.location.href = '/auth.html';
+}
+
+function goToManager() {
+    console.log('goToManager called from manager');
+    // Already on manager page, just refresh or do nothing
+    window.location.reload();
+}
+
+// Make navigation functions globally available immediately
+window.goToIndex = goToIndex;
+window.goToAuth = goToAuth;
+window.goToManager = goToManager;
+
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
-  // Welcome message
-  if (userEmail) {
-    document.getElementById('userWelcome').textContent = `Welcome, ${userEmail} (${role})`;
-  }
-
-  // Initialize Socket.IO
-  const socket = io();
+  console.log('Manager.js DOMContentLoaded started');
   
-  socket.on('newAlert', (alert) => {
-    console.log('New alert sent:', alert);
-  });
+  // Check authentication and authorization first
+  if (!token || (!DEBUG_MODE && (role !== 'admin' && role !== 'manager'))) {
+    console.log('Manager: Authentication failed, redirecting to auth page');
+    localStorage.clear();
+    window.location.href = 'auth.html';
+    return;
+  }
+  
+  try {
+    // Welcome message
+    if (userEmail) {
+      document.getElementById('userWelcome').textContent = `Welcome, ${userEmail} (${role})`;
+      console.log('Welcome message set for manager');
+    }
 
-  // Event listeners
-  document.getElementById('logoutBtn').onclick = logout;
-  document.getElementById('sendAlertBtn').onclick = sendAlert;
+    // Initialize Socket.IO
+    const socket = io();
+    console.log('Socket.IO initialized in manager');
+    
+    socket.on('newAlert', (alert) => {
+      console.log('New alert sent:', alert);
+    });
 
-  // Load initial data
-  loadDashboardData();
+    // Event listeners
+    const logoutButton = document.getElementById('logoutBtn');
+    if (logoutButton) {
+      logoutButton.onclick = logout;
+      console.log('Logout button event listener set in manager');
+    } else {
+      console.error('Logout button not found in manager');
+    }
+    
+    const sendAlertButton = document.getElementById('sendAlertBtn');
+    if (sendAlertButton) {
+      sendAlertButton.onclick = sendAlert;
+      console.log('Send alert button event listener set');
+    } else {
+      console.error('Send alert button not found');
+    }
+
+    // Load initial data
+    loadDashboardData();
+    
+    console.log('Manager.js DOMContentLoaded completed');
+    
+    // Debug: Check if navigation functions are available globally
+    console.log('Manager navigation functions available:');
+    console.log('- goToIndex:', typeof window.goToIndex);
+    console.log('- goToAuth:', typeof window.goToAuth);
+    console.log('- goToManager:', typeof window.goToManager);
+    
+  } catch (error) {
+    console.error('Error in manager DOMContentLoaded:', error);
+  }
 });
 
 // Logout functionality
@@ -138,6 +203,11 @@ async function loadCars(page = 1) {
     const data = await response.json();
     const { cars, pagination } = data;
 
+    // Store car data for photo gallery access
+    cars.forEach(car => {
+      carDataStore[car.vin] = car;
+    });
+
     currentPage = pagination.page;
     totalPages = pagination.pages;
 
@@ -179,7 +249,7 @@ async function loadCars(page = 1) {
                        style="width: 60px; height: 40px; object-fit: cover; border-radius: 5px; cursor: pointer;" 
                        onerror="this.src='https://via.placeholder.com/60x40?text=No+Image'"
                        ${car.media && car.media.length > 1 ? 
-                         `onclick="showImageGallery('${car.vin}', '${carTitle.replace(/'/g, "\\'")}', '${JSON.stringify(car.media).replace(/'/g, "\\'")}');" title="Click to view ${car.media.length} photos"` : 
+                         `onclick="showImageGalleryByVin('${car.vin}', '${carTitle.replace(/'/g, "\\'")}');" title="Click to view ${car.media.length} photos"` : 
                          ''
                        }>
                   ${car.media && car.media.length > 1 ? 
@@ -212,12 +282,20 @@ async function loadCars(page = 1) {
                 </small>
               </td>
               <td>
-                <button class="btn btn-sm btn-outline-primary me-1" onclick="viewCar('${car.id}')">
-                  <i class="fas fa-eye"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteCar('${car.id}', '${carTitle}')">
-                  <i class="fas fa-trash"></i>
-                </button>
+                <div class="btn-group" role="group">
+                  <button class="btn btn-sm btn-outline-primary" onclick="viewCar('${car.id}')" title="View Details">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-info" onclick="showImageGalleryByVin('${car.vin}', '${carTitle.replace(/'/g, "\\'")}');" title="View Photos">
+                    <i class="fas fa-camera"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-success" onclick="showDealershipMap('${car.vin}', '${carTitle.replace(/'/g, "\\'")}');" title="Find Dealerships">
+                    <i class="fas fa-map-marker-alt"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" onclick="deleteCar('${car.id}', '${carTitle}')" title="Delete Car">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
               </td>
             </tr>
           `;}).join('')}
@@ -427,73 +505,381 @@ function showToast(message) {
   toast.show();
 }
 
+// Wrapper function to get car data by VIN and show gallery
+function showImageGalleryByVin(vin, carName) {
+  console.log('showImageGalleryByVin called with:', { vin, carName });
+  const car = carDataStore[vin];
+  if (car && car.media) {
+    showImageGallery(vin, carName, JSON.stringify(car.media));
+  } else {
+    console.warn('No car data or media found for VIN:', vin);
+    showImageGallery(vin, carName, '[]');
+  }
+}
+
 // Show image gallery modal
-async function showImageGallery(vin, carName, mediaJson) {
+function showImageGallery(vin, carName, mediaJson) {
   try {
-    const media = JSON.parse(mediaJson);
+    const photoModal = new bootstrap.Modal(document.getElementById('photoModal'));
+    const photoGallery = document.getElementById('photoGallery');
+    const modalTitle = document.getElementById('photoModalLabel');
     
-    // Create and show modal
-    const modalHtml = `
-      <div class="modal fade" id="imageGalleryModal" tabindex="-1" aria-labelledby="imageGalleryModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="imageGalleryModalLabel">
-                <i class="fas fa-images me-2"></i>${carName} - Photo Gallery
-              </h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <div id="carouselGallery" class="carousel slide" data-bs-ride="carousel">
-                <div class="carousel-indicators">
-                  ${media.map((_, index) => 
-                    `<button type="button" data-bs-target="#carouselGallery" data-bs-slide-to="${index}" ${index === 0 ? 'class="active" aria-current="true"' : ''} aria-label="Slide ${index + 1}"></button>`
-                  ).join('')}
-                </div>
-                <div class="carousel-inner">
-                  ${media.map((imageUrl, index) => `
-                    <div class="carousel-item ${index === 0 ? 'active' : ''}">
-                      <img src="${imageUrl}" class="d-block w-100" alt="${carName} - Image ${index + 1}" style="height: 400px; object-fit: cover;">
-                    </div>
-                  `).join('')}
-                </div>
-                <button class="carousel-control-prev" type="button" data-bs-target="#carouselGallery" data-bs-slide="prev">
-                  <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                  <span class="visually-hidden">Previous</span>
-                </button>
-                <button class="carousel-control-next" type="button" data-bs-target="#carouselGallery" data-bs-slide="next">
-                  <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                  <span class="visually-hidden">Next</span>
-                </button>
-              </div>
+    // Parse the media data
+    let media = [];
+    try {
+      media = JSON.parse(mediaJson);
+    } catch (e) {
+      console.error('Error parsing media JSON:', e);
+      media = [];
+    }
+    
+    modalTitle.innerHTML = `<i class="fas fa-images me-2"></i>Photos for ${carName}`;
+    
+    if (!media || media.length === 0) {
+      photoGallery.innerHTML = `
+        <div class="col-12 text-center">
+          <i class="fas fa-image fa-3x text-muted mb-3"></i>
+          <p>No photos available for this vehicle.</p>
+        </div>
+      `;
+    } else {
+      // Create photo grid
+      photoGallery.innerHTML = media.map((photo, index) => `
+        <div class="col-lg-4 col-md-6 col-sm-12">
+          <div class="card h-100">
+            <img src="${photo}" class="card-img-top photo-thumbnail" alt="Vehicle Photo ${index + 1}" 
+                 style="height: 250px; object-fit: cover; cursor: pointer;"
+                 onclick="openLightbox('${photo}', ${index}, ${media.length})"
+                 onerror="this.src='https://via.placeholder.com/400x250?text=Image+Not+Available'">
+            <div class="card-body p-2">
+              <small class="text-muted">Photo ${index + 1} of ${media.length}</small>
             </div>
           </div>
         </div>
+      `).join('');
+    }
+    
+    photoModal.show();
+  } catch (error) {
+    console.error('Error showing image gallery:', error);
+    alert('Failed to load photo gallery. Please try again.');
+  }
+}
+
+// Open lightbox for full-size image viewing
+function openLightbox(imageSrc, currentIndex, totalImages) {
+  // Create lightbox overlay
+  const lightbox = document.createElement('div');
+  lightbox.className = 'lightbox-overlay';
+  lightbox.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    cursor: pointer;
+  `;
+  
+  lightbox.innerHTML = `
+    <div style="position: relative; max-width: 90%; max-height: 90%;">
+      <img src="${imageSrc}" style="max-width: 100%; max-height: 100%; object-fit: contain;" 
+           onerror="this.src='https://via.placeholder.com/800x600?text=Image+Not+Available'">
+      <div style="position: absolute; top: 10px; right: 10px;">
+        <button class="btn btn-light btn-sm" onclick="this.closest('.lightbox-overlay').remove()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div style="position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); color: white; text-align: center;">
+        <small>Photo ${currentIndex + 1} of ${totalImages}</small>
+      </div>
+    </div>
+  `;
+  
+  // Close on click outside image
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) {
+      lightbox.remove();
+    }
+  });
+  
+  // Close on Escape key
+  document.addEventListener('keydown', function escapeHandler(e) {
+    if (e.key === 'Escape') {
+      lightbox.remove();
+      document.removeEventListener('keydown', escapeHandler);
+    }
+  });
+  
+  document.body.appendChild(lightbox);
+}
+
+// Add dealership map functionality to manager
+async function showDealershipMap(vin, carName) {
+  const mapsModal = new bootstrap.Modal(document.getElementById('mapsModal'));
+  const mapContainer = document.getElementById('mapContainer');
+  const dealershipsList = document.getElementById('dealershipsList');
+  const modalTitle = document.getElementById('mapsModalLabel');
+  
+  modalTitle.innerHTML = `<i class="fas fa-map-marker-alt me-2"></i>Dealerships for ${carName}`;
+  
+  try {
+    // Show loading state
+    mapContainer.innerHTML = `
+      <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="text-center">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2">Loading dealerships...</p>
+        </div>
+      </div>
+    `;
+    dealershipsList.innerHTML = '';
+    
+    mapsModal.show();
+
+    // Fetch dealerships from MarketCheck data
+    const response = await fetch(`/api/cars/${vin}/dealerships`, {
+      headers: { 
+        'Authorization': `Bearer ${token}` 
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const dealerships = await response.json();
+    
+    if (dealerships.length === 0) {
+      mapContainer.innerHTML = `
+        <div class="text-center p-4">
+          <i class="fas fa-map-marker-alt fa-3x text-muted mb-3"></i>
+          <p>No dealerships found for this vehicle.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Store dealerships globally for map updates
+    window.currentDealerships = dealerships;
+    window.selectedDealershipIndex = 0; // Start with first dealership
+
+    // Display dealerships list with clickable rows
+    dealershipsList.innerHTML = `
+      <h6>Found ${dealerships.length} dealership(s):</h6>
+      <div class="list-group" id="dealershipListItems">
+        ${dealerships.map((dealer, index) => `
+          <div class="list-group-item list-group-item-action dealership-item ${index === 0 ? 'active' : ''}" 
+               onclick="selectDealership(${index})" 
+               data-index="${index}"
+               style="cursor: pointer;">
+            <div class="d-flex w-100 justify-content-between">
+              <h6 class="mb-1">
+                ${dealer.name || 'Unknown Dealership'}
+                ${dealer.isPrimary ? '<span class="badge bg-primary ms-2">Primary</span>' : ''}
+              </h6>
+              <small class="text-muted dealer-location">📍 ${dealer.city}, ${dealer.state}</small>
+            </div>
+            <p class="mb-1">${dealer.address || 'Address not available'}</p>
+            <div class="d-flex justify-content-between align-items-center">
+              <small class="text-muted">📞 ${dealer.phone || 'Phone not available'}</small>
+              <small class="map-status ${index === 0 ? 'text-primary' : 'text-muted'}">
+                ${index === 0 ? '<i class="fas fa-map-marker-alt me-1"></i>Showing on map' : 'Click to view on map'}
+              </small>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    // Add event listeners as backup for onclick
+    setTimeout(() => {
+      const dealershipItems = document.querySelectorAll('.dealership-item');
+      dealershipItems.forEach((item, index) => {
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          console.log('Click event listener triggered for index:', index);
+          selectDealership(index);
+        });
+      });
+    }, 100);
+
+    // Initialize map with first dealership
+    if (window.googleMapsLoaded && window.google) {
+      initializeSingleDealershipMap(dealerships[0]);
+    } else {
+      // Fallback display
+      const dealer = dealerships[0];
+      mapContainer.innerHTML = `
+        <div class="bg-light d-flex align-items-center justify-content-center h-100 rounded">
+          <div class="text-center">
+            <i class="fas fa-map fa-3x text-primary mb-3"></i>
+            <h5>${dealer.name}</h5>
+            <p class="text-muted">${dealer.address}</p>
+            <p class="text-muted">📞 ${dealer.phone}</p>
+            <small class="text-info">Add your Google Maps API key to enable interactive maps</small>
+          </div>
+        </div>
+      `;
+    }
+
+  } catch (error) {
+    console.error('Error fetching dealerships:', error);
+    
+    let errorMessage = 'Failed to load dealership information.';
+    if (error.message.includes('404')) {
+      errorMessage = 'Car not found in the database.';
+    } else if (error.message.includes('400')) {
+      errorMessage = 'No dealer information available for this vehicle.';
+    } else if (error.message.includes('401')) {
+      errorMessage = 'Authentication required. Please log in again.';
+    }
+    
+    mapContainer.innerHTML = `
+      <div class="text-center p-4">
+        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+        <p>${errorMessage}</p>
+        <small class="text-muted">Error details: ${error.message}</small>
+        <br><br>
+        <button class="btn btn-primary" onclick="showDealershipMap('${vin}', '${carName}')">
+          <i class="fas fa-redo me-2"></i>Retry
+        </button>
       </div>
     `;
     
-    // Remove existing modal if any
-    const existingModal = document.getElementById('imageGalleryModal');
-    if (existingModal) {
-      existingModal.remove();
-    }
-    
-    // Add modal to body
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('imageGalleryModal'));
-    modal.show();
-    
-    // Clean up modal when hidden
-    document.getElementById('imageGalleryModal').addEventListener('hidden.bs.modal', function () {
-      this.remove();
-    });
-    
-  } catch (error) {
-    console.error('Error showing image gallery:', error);
-    alert('Failed to load image gallery');
+    dealershipsList.innerHTML = `
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Unable to load dealership list. ${errorMessage}
+      </div>
+    `;
   }
+}
+
+// Function to select and display a specific dealership
+function selectDealership(index) {
+  console.log('selectDealership called with index:', index);
+  console.log('currentDealerships:', window.currentDealerships);
+  
+  if (!window.currentDealerships || index >= window.currentDealerships.length) {
+    console.error('Invalid dealership index or no dealerships loaded');
+    console.error('Index:', index, 'Array length:', window.currentDealerships?.length);
+    return;
+  }
+
+  window.selectedDealershipIndex = index;
+  const dealer = window.currentDealerships[index];
+  console.log('Selected dealer:', dealer);
+
+  // Update active state in the list
+  const dealershipItems = document.querySelectorAll('.dealership-item');
+  console.log('Found dealership items:', dealershipItems.length);
+  
+  dealershipItems.forEach((item, i) => {
+    if (i === index) {
+      item.classList.add('active');
+      const mapStatus = item.querySelector('.map-status');
+      if (mapStatus) {
+        mapStatus.innerHTML = '<i class="fas fa-map-marker-alt me-1"></i>Showing on map';
+        mapStatus.className = 'map-status text-primary';
+      }
+    } else {
+      item.classList.remove('active');
+      const mapStatus = item.querySelector('.map-status');
+      if (mapStatus) {
+        mapStatus.innerHTML = 'Click to view on map';
+        mapStatus.className = 'map-status text-muted';
+      }
+    }
+  });
+
+  // Update the map
+  if (window.googleMapsLoaded && window.google) {
+    console.log('Updating map with dealer:', dealer.name);
+    initializeSingleDealershipMap(dealer);
+  } else {
+    // Update fallback display
+    const mapContainer = document.getElementById('mapContainer');
+    mapContainer.innerHTML = `
+      <div class="bg-light d-flex align-items-center justify-content-center h-100 rounded">
+        <div class="text-center">
+          <i class="fas fa-map fa-3x text-primary mb-3"></i>
+          <h5>${dealer.name}</h5>
+          <p class="text-muted">${dealer.address}</p>
+          <p class="text-muted">📞 ${dealer.phone}</p>
+          <small class="text-info">Add your Google Maps API key to enable interactive maps</small>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// Initialize Google Maps with single dealership
+function initializeSingleDealershipMap(dealer) {
+  const mapContainer = document.getElementById('mapContainer');
+  
+  if (!dealer || !dealer.lat || !dealer.lng) {
+    mapContainer.innerHTML = `
+      <div class="text-center p-4">
+        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+        <p>Unable to display map for this dealership.</p>
+        <small class="text-muted">Location coordinates not available</small>
+      </div>
+    `;
+    return;
+  }
+
+  const lat = parseFloat(dealer.lat);
+  const lng = parseFloat(dealer.lng);
+
+  const mapOptions = {
+    zoom: 15,
+    center: { lat, lng },
+    mapTypeId: google.maps.MapTypeId.ROADMAP
+  };
+
+  const map = new google.maps.Map(mapContainer, mapOptions);
+
+  // Create marker for the dealership
+  const marker = new google.maps.Marker({
+    position: { lat, lng },
+    map: map,
+    title: dealer.name || 'Dealership',
+    animation: google.maps.Animation.DROP,
+    icon: {
+      url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+      scaledSize: new google.maps.Size(40, 40)
+    }
+  });
+
+  // Create info window with detailed dealership information
+  const infoWindow = new google.maps.InfoWindow({
+    content: `
+      <div style="max-width: 300px; padding: 10px;">
+        <h6 class="mb-2">${dealer.name || 'Unknown Dealership'}</h6>
+        <p class="mb-1"><i class="fas fa-map-marker-alt text-primary me-2"></i>${dealer.address || 'Address not available'}</p>
+        <p class="mb-1"><i class="fas fa-phone text-success me-2"></i>${dealer.phone && dealer.phone !== 'Phone not available' ? dealer.phone : 'Phone not available'}</p>
+        ${dealer.website ? `<p class="mb-1"><i class="fas fa-globe text-info me-2"></i><a href="${dealer.website}" target="_blank">Visit Website</a></p>` : ''}
+        ${dealer.dealerType && dealer.dealerType !== 'Unknown' ? `<p class="mb-0"><small class="text-muted">Type: ${dealer.dealerType}</small></p>` : ''}
+      </div>
+    `
+  });
+
+  // Show info window by default
+  infoWindow.open(map, marker);
+
+  // Click marker to toggle info window
+  marker.addListener('click', () => {
+    if (infoWindow.getMap()) {
+      infoWindow.close();
+    } else {
+      infoWindow.open(map, marker);
+    }
+  });
 }
 
 // Make functions globally available
@@ -502,3 +888,51 @@ window.deleteCar = deleteCar;
 window.viewCar = viewCar;
 window.addCar = addCar;
 window.showImageGallery = showImageGallery;
+window.showImageGalleryByVin = showImageGalleryByVin;
+window.openLightbox = openLightbox;
+window.showDealershipMap = showDealershipMap;
+window.selectDealership = selectDealership;
+window.initializeSingleDealershipMap = initializeSingleDealershipMap;
+
+// Debug and test functions for manager
+window.testManagerFunctions = function() {
+  console.log('=== TESTING MANAGER FUNCTIONS ===');
+  
+  // Test navigation functions
+  console.log('Navigation functions:');
+  console.log('- goToIndex:', typeof window.goToIndex, window.goToIndex);
+  console.log('- goToAuth:', typeof window.goToAuth, window.goToAuth);
+  console.log('- goToManager:', typeof window.goToManager, window.goToManager);
+  
+  // Test DOM elements
+  console.log('DOM elements:');
+  console.log('- logoutBtn:', document.getElementById('logoutBtn'));
+  console.log('- indexPageBtn:', document.getElementById('indexPageBtn'));
+  console.log('- authPageBtn:', document.getElementById('authPageBtn'));
+  console.log('- sendAlertBtn:', document.getElementById('sendAlertBtn'));
+  
+  console.log('=== END MANAGER TEST ===');
+};
+
+// Test manager buttons functionality
+window.testManagerButtons = function() {
+  console.log('=== TESTING MANAGER BUTTON CLICKS ===');
+  
+  const indexBtn = document.getElementById('indexPageBtn');
+  const authBtn = document.getElementById('authPageBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  
+  if (indexBtn) {
+    console.log('Index button found, onclick attribute:', indexBtn.getAttribute('onclick'));
+  } else {
+    console.error('Index button not found');
+  }
+  
+  if (authBtn) {
+    console.log('Auth button found, onclick attribute:', authBtn.getAttribute('onclick'));
+  } else {
+    console.error('Auth button not found');
+  }
+  
+  console.log('=== END MANAGER BUTTON TEST ===');
+};
