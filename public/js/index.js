@@ -1,5 +1,5 @@
 // index.js - User Dashboard
-const token = localStorage.getItem('token');
+let token = localStorage.getItem('token');
 const userEmail = localStorage.getItem('userEmail');
 
 // Navigation functions (defined first so they're available immediately)
@@ -38,10 +38,23 @@ function goToIndex() {
     }
 }
 
+// Enhanced logout function that uses token manager
+function logout() {
+    console.log('Logout initiated');
+    if (window.tokenManager) {
+        window.tokenManager.logout();
+    } else {
+        // Fallback to old method
+        localStorage.clear();
+        window.location.href = '/auth.html';
+    }
+}
+
 // Make navigation functions globally available immediately
 window.goToAuth = goToAuth;
 window.goToManager = goToManager;
 window.goToIndex = goToIndex;
+window.logout = logout;
 
 // Check authentication - but don't redirect immediately, let page load first
 let authCheckDone = false;
@@ -57,9 +70,18 @@ console.log('User email:', userEmail);
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Index.js DOMContentLoaded started');
   
-  // Check authentication first
-  if (!token && !DEBUG_MODE) {
-    console.log('No token found, redirecting to auth page');
+  // Initialize token manager and check session
+  if (window.tokenManager) {
+    const hasValidSession = window.tokenManager.init();
+    if (!hasValidSession && !DEBUG_MODE) {
+      console.log('No valid session found, redirecting to auth page');
+      window.location.href = 'auth.html';
+      return;
+    }
+    // Update token from token manager
+    token = localStorage.getItem('token');
+  } else if (!token && !DEBUG_MODE) {
+    console.log('No token found and token manager not available, redirecting to auth page');
     window.location.href = 'auth.html';
     return;
   }
@@ -153,9 +175,15 @@ async function getRandomCars() {
     randomBtn.disabled = true;
     carsContainer.innerHTML = '';
 
+    // Get valid token from token manager
+    const validToken = window.tokenManager ? await window.tokenManager.getValidToken() : token;
+    if (!validToken) {
+      throw new Error('No valid authentication token');
+    }
+
     const response = await fetch('/api/cars/random?count=3', {
       headers: { 
-        'Authorization': `Bearer ${token}` 
+        'Authorization': `Bearer ${validToken}` 
       }
     });
 
@@ -210,6 +238,20 @@ function getBestImageUrl(car) {
 
 // Global storage for car data
 let carDataStore = {};
+
+// Helper function to get valid token for API calls
+async function getValidAuthToken() {
+  if (window.tokenManager) {
+    const validToken = await window.tokenManager.getValidToken();
+    if (!validToken) {
+      console.log('Token validation failed, redirecting to auth');
+      window.location.href = '/auth.html';
+      return null;
+    }
+    return validToken;
+  }
+  return token; // Fallback to stored token
+}
 
 // Display cars in the UI
 function displayCars(cars) {
@@ -454,10 +496,16 @@ async function showDealershipMap(vin, carName) {
     
     mapsModal.show();
 
+    // Get valid token from token manager
+    const validToken = window.tokenManager ? await window.tokenManager.getValidToken() : token;
+    if (!validToken) {
+      throw new Error('No valid authentication token');
+    }
+
     // Fetch dealerships from MarketCheck data
     const response = await fetch(`/api/cars/${vin}/dealerships`, {
       headers: { 
-        'Authorization': `Bearer ${token}` 
+        'Authorization': `Bearer ${validToken}` 
       }
     });
 

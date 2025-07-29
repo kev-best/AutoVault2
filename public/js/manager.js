@@ -1,5 +1,5 @@
 // manager.js - Manager Dashboard
-const token = localStorage.getItem('token');
+let token = localStorage.getItem('token');
 const role = localStorage.getItem('role');
 const userEmail = localStorage.getItem('userEmail');
 
@@ -18,6 +18,20 @@ let totalPages = 1;
 // Global storage for car data (for photo gallery access)
 let carDataStore = {};
 
+// Helper function to get valid token for API calls
+async function getValidAuthToken() {
+  if (window.tokenManager) {
+    const validToken = await window.tokenManager.getValidToken();
+    if (!validToken) {
+      console.log('Token validation failed, redirecting to auth');
+      window.location.href = '/auth.html';
+      return null;
+    }
+    return validToken;
+  }
+  return token; // Fallback to stored token
+}
+
 // Navigation functions
 function goToIndex() {
     console.log('goToIndex called from manager');
@@ -35,17 +49,39 @@ function goToManager() {
     window.location.reload();
 }
 
+// Enhanced logout function for manager
+function logout() {
+    console.log('Manager logout initiated');
+    if (window.tokenManager) {
+        window.tokenManager.logout();
+    } else {
+        // Fallback to old method
+        localStorage.clear();
+        window.location.href = '/auth.html';
+    }
+}
+
 // Make navigation functions globally available immediately
 window.goToIndex = goToIndex;
 window.goToAuth = goToAuth;
 window.goToManager = goToManager;
+window.logout = logout;
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
   console.log('Manager.js DOMContentLoaded started');
   
-  // Check authentication and authorization first
-  if (!token || (!DEBUG_MODE && (role !== 'admin' && role !== 'manager'))) {
+  // Initialize token manager and check session
+  if (window.tokenManager) {
+    const hasValidSession = window.tokenManager.init();
+    if (!hasValidSession && !DEBUG_MODE) {
+      console.log('Manager: No valid session found, redirecting to auth page');
+      window.location.href = 'auth.html';
+      return;
+    }
+    // Update token from token manager
+    token = localStorage.getItem('token');
+  } else if (!token || (!DEBUG_MODE && (role !== 'admin' && role !== 'manager'))) {
     console.log('Manager: Authentication failed, redirecting to auth page');
     localStorage.clear();
     window.location.href = 'auth.html';
@@ -192,8 +228,11 @@ async function loadCars(page = 1) {
     loadingSpinner.style.display = 'block';
     carsTable.innerHTML = '';
 
+    const validToken = await getValidAuthToken();
+    if (!validToken) return;
+
     const response = await fetch(`/api/cars?page=${page}&limit=10`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${validToken}` }
     });
 
     if (!response.ok) {

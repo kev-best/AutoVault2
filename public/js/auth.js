@@ -59,11 +59,18 @@ window.addEventListener('load', () => {
       const data = await response.json();
       
       if (response.ok && data.user) {
-        // Store token and user info
-        localStorage.setItem('token', idToken);
+        // Store user info (token will be managed by TokenManager)
         localStorage.setItem('role', data.user.role);
         localStorage.setItem('userEmail', data.user.email);
         localStorage.setItem('userId', data.user.uid);
+
+        // Start the extended session with TokenManager
+        if (window.tokenManager) {
+          window.tokenManager.startSession(idToken);
+        } else {
+          // Fallback to old method if TokenManager not available
+          localStorage.setItem('token', idToken);
+        }
 
         // Redirect based on role
         if (data.user.role === 'admin' || data.user.role === 'manager') {
